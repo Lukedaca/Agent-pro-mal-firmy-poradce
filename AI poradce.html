@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Poradce pro malé firmy</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+  <div class="w-full max-w-2xl p-6 bg-gray-800 rounded-2xl shadow-xl">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-3xl font-bold text-teal-400">AI Poradce pro malé firmy</h1>
+      <div class="flex gap-2">
+        <button onclick="toggleMemory()" class="text-sm text-gray-400 hover:text-teal-300 transition">🧠 Paměť</button>
+        <button onclick="toggleSettings()" class="text-sm text-gray-400 hover:text-teal-300 transition">⚙️ Nastavení</button>
+      </div>
+    </div>
+
+    <div id="memoryBox" class="mb-4 p-4 bg-gray-700 rounded-xl hidden">
+      <div class="flex justify-between items-center mb-2">
+        <h3 class="text-lg font-semibold text-teal-300">Paměť a učení agenta</h3>
+        <div class="flex items-center">
+          <label class="mr-2 text-xs text-gray-300">Učení zapnuto</label>
+          <input type="checkbox" id="learningEnabled" class="w-4 h-4" checked>
+        </div>
+      </div>
+      <div class="bg-gray-800 p-3 rounded max-h-48 overflow-y-auto mb-2" id="memoryContent">
+        <p class="text-gray-400 text-sm italic">Zatím žádné vzpomínky...</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="clearMemory()" class="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-1 px-2 rounded transition">Vymazat paměť</button>
+        <button onclick="exportMemory()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold py-1 px-2 rounded transition">Exportovat</button>
+      </div>
+    </div>
+
+    <div id="settingsBox" class="mb-4 p-4 bg-gray-700 rounded-xl hidden">
+      <label class="block mb-2 text-sm font-semibold text-gray-300">OpenAI API klíč:</label>
+      <div class="flex items-center">
+        <input id="apiKey" type="password" class="w-full p-2 rounded bg-gray-800 text-white border border-gray-600" placeholder="sk-..." onblur="hideSettingsIfFilled()" />
+        <button onclick="toggleKeyVisibility()" class="ml-2 text-lg text-gray-400 hover:text-white">👁️</button>
+      </div>
+    </div>
+
+    <div class="space-y-4">
+      <div>
+        <label class="block mb-1 text-sm font-semibold text-gray-300">Obor podnikání:</label>
+        <select id="industry" onchange="toggleCustomIndustry(this.value)" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600">
+          <option value="">-- Vyber obor --</option>
+          <option value="kavárna">Kavárna</option>
+          <option value="e-shop">E-shop</option>
+          <option value="řemeslník">Řemeslník</option>
+          <option value="fotograf">Fotograf</option>
+          <option value="účtárna">Účetní</option>
+          <option value="vlastní">Jiný (vlastní obor)</option>
+        </select>
+        <input id="customIndustry" class="w-full p-2 mt-2 rounded bg-gray-700 text-white border border-gray-600 hidden" placeholder="Zadej vlastní obor...">
+      </div>
+
+      <div>
+        <label class="block mb-1 text-sm font-semibold text-gray-300">Otázka:</label>
+        <textarea id="question" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600" rows="4" placeholder="Jak zvýšit tržby...?"></textarea>
+      </div>
+
+      <div>
+        <label class="block mb-1 text-sm font-semibold text-gray-300">Tón odpovědi:</label>
+        <select id="tone" class="w-full p-2 rounded bg-gray-700 text-white border border-gray-600">
+          <option value="">Standardní</option>
+          <option value="stručný">Stručný</option>
+          <option value="detailní">Detailní</option>
+          <option value="motivační">Motivační</option>
+          <option value="odborný">Odborný</option>
+        </select>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="askAI()" class="flex-1 bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-4 rounded-xl transition">Zeptej se</button>
+        <button onclick="startVoiceInput()" class="flex-1 bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-4 rounded-xl transition">🎤 Zadat hlasem</button>
+      </div>
+    </div>
+
+    <div id="responseBox" class="mt-6 hidden">
+      <h2 class="text-xl font-semibold mb-2 text-teal-300">Odpověď poradce:</h2>
+      <div class="bg-gray-700 p-4 rounded mb-4 whitespace-pre-wrap min-h-[100px]" id="responseText"></div>
+      <details class="bg-gray-700 p-4 rounded mb-4">
+  <summary class="cursor-pointer text-center text-white py-2 font-semibold hover:underline">📂 Další akce</summary>
+  <div class="flex flex-col gap-2 mt-4">
+    <button onclick="stopTyping()" class="w-full bg-red-400 hover:bg-red-500 text-white font-semibold py-2 px-4 rounded-xl transition">⏹️ Zastavit zobrazování</button>
+    <button onclick="downloadPDF()" class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-xl transition">Stáhnout jako PDF</button>
+    <button onclick="downloadTXT()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-xl transition">Stáhnout jako TXT</button>
+    <button onclick="generateFollowup()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-xl transition">Navrhni doplňující otázku</button>
+    <button onclick="readAnswerAloud()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-xl transition">Přečíst nahlas</button>
+  </div>
+</details>
+
+<button onclick="stopReading()" class="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-xl transition">🛑 Zastavit čtení</button>
+      </div>
+
+      <h3 class="text-lg font-semibold mt-6 text-teal-300">Historie dotazů:</h3>
+      <ul id="historyList" class="list-disc ml-6 text-sm mt-2"></ul>
+    </div>
+  </div>
+
+  <script>
+    let showKey = false;
+    let currentUtterance = null;
+    let typingInterval;
+    
+    // Paměť a učení agenta
+    let memory = {
+      conversations: [],
+      learningPoints: {},
+      stats: {
+        questionsAsked: 0,
+        topicFrequency: {}
+      }
+    };
+    
+    // Načteme paměť z localStorage po načtení stránky
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedMemory = localStorage.getItem('aiAdvisorMemory');
+      if (savedMemory) {
+        try {
+          memory = JSON.parse(savedMemory);
+          console.log("Načtena uložená paměť agenta.");
+        } catch (err) {
+          console.error("Chyba při načítání paměti:", err);
+        }
+      }
+    });
+
+    function toggleSettings() {
+      const box = document.getElementById("settingsBox");
+      if (box.classList.contains("hidden")) {
+        box.classList.remove("hidden");
+      } else {
+        box.classList.add("hidden");
+      }
+    }
+
+    function toggleKeyVisibility() {
+      const input = document.getElementById("apiKey");
+      showKey = !showKey;
+      input.type = showKey ? "text" : "password";
+    }
+
+    function hideSettingsIfFilled() {
+      const apiKey = document.getElementById("apiKey").value.trim();
+      if (apiKey !== "") {
+        document.getElementById("settingsBox").classList.add("hidden");
+      }
+    }
+
+    function toggleCustomIndustry(value) {
+      const customInput = document.getElementById("customIndustry");
+      if (value === "vlastní") {
+        customInput.classList.remove("hidden");
+      } else {
+        customInput.classList.add("hidden");
+      }
+    }
+
+    function typeWriter(text, elementId, speed = 20) {
+      let i = 0;
+      let sentence = "";
+      const element = document.getElementById(elementId);
+      element.textContent = "";
+      clearInterval(typingInterval);
+      typingInterval = setInterval(() => {
+        if (i < text.length) {
+          const char = text.charAt(i);
+          element.textContent += char;
+          sentence += char;
+          if (char === '.' || char === '!' || char === '?') {
+            speakCleaned(sentence.trim());
+            sentence = "";
+          }
+          i++;
+        } else {
+          clearInterval(typingInterval);
+          if (sentence.trim()) speakCleaned(sentence.trim());
+        }
+      }, speed);
+    }
+
+    function stopTyping() {
+      clearInterval(typingInterval);
+    }
+
+    async function askAI() {
+      provideVoiceFeedback("Rozumím. Připravuji odpověď, chvíli strpení.");
+      const apiKey = document.getElementById("apiKey").value.trim();
+      let industry = document.getElementById("industry").value;
+      const customIndustry = document.getElementById("customIndustry").value.trim();
+      const question = document.getElementById("question").value.trim();
+      const tone = document.getElementById("tone").value;
+      const learningEnabled = document.getElementById("learningEnabled").checked;
+
+      if (!apiKey || !question || (!industry && !customIndustry)) {
+        alert("Vyplň prosím všechna pole a nastav API klíč.");
+        return;
+      }
+
+      if (industry === "vlastní") {
+        industry = customIndustry;
+      }
+
+      // Aktualizovat statistiky
+      memory.stats.questionsAsked++;
+      const topicKeywords = extractTopicKeywords(question);
+      topicKeywords.forEach(keyword => {
+        memory.stats.topicFrequency[keyword] = (memory.stats.topicFrequency[keyword] || 0) + 1;
+      });
+      
+      // Základní prompt pro agenta
+      let systemPrompt = "Jsi praktický poradce pro podnikatele, odpovídáš česky a srozumitelně.";
+      
+      // Přidáme kontext z paměti pokud je učení zapnuto
+      let messages = [];
+      if (learningEnabled && memory.conversations.length > 0) {
+        systemPrompt += " Využij následující znalosti z předchozích konverzací:";
+        
+        // Najdeme relevantní předchozí konverzace
+        const relevantMemories = findRelevantMemories(question, industry);
+        if (relevantMemories.length > 0) {
+          systemPrompt += " " + relevantMemories.map(m => 
+            `Pro firmu typu '${m.industry}' na otázku '${m.question}' jsem odpověděl: '${m.shortAnswer}'`
+          ).join(". ");
+        }
+        
+        // Přidáme znalostní body
+        const relevantLearningPoints = Object.keys(memory.learningPoints)
+          .filter(key => question.toLowerCase().includes(key.toLowerCase()) || industry.toLowerCase().includes(key.toLowerCase()))
+          .map(key => memory.learningPoints[key]);
+          
+        if (relevantLearningPoints.length > 0) {
+          systemPrompt += " Zohledni tyto naučené body: " + relevantLearningPoints.join(". ");
+        }
+      }
+      
+      messages.push({ role: "system", content: systemPrompt });
+      
+      // Přidáme aktuální otázku
+      const prompt = `Jsi zkušený poradce pro malé firmy. Odpověz v tónu: ${tone || "standardní"}. Firma: ${industry}. Otázka: ${question}. Odpověz česky, prakticky a ideálně v bodech.`;
+      messages.push({ role: "user", content: prompt });
+
+      const responseBox = document.getElementById("responseBox");
+      const responseText = document.getElementById("responseText");
+      responseText.textContent = "🧠 Přemýšlím...";
+      responseBox.classList.remove("hidden");
+
+      try {
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4",
+            messages: messages,
+          }),
+        });
+
+        const data = await res.json();
+        const aiResponse = data.choices?.[0]?.message?.content || "⚠️ Došlo k chybě.";
+        typeWriter(aiResponse, "responseText");
+        provideVoiceFeedback("Hotovo. Tady je doporučení.");
+        setTimeout(() => {
+          if (!window.speechSynthesis.speaking) {
+            readAnswerAloud();
+          }
+        }, 1000);
+        
+        // Ukládáme do paměti a historie
+        saveToMemory(question, aiResponse, industry);
+        saveToHistory(question, aiResponse);
+        updateMemoryDisplay();
+        
+        // Pokud je učení zapnuto, extrahujeme klíčové body pro budoucí učení
+        if (learningEnabled) {
+          extractLearningPoints(question, aiResponse, industry);
+        }
+      } catch (err) {
+        responseText.textContent = "⚠️ Chyba při komunikaci s OpenAI API.";
+      }
+    }
+
+    function startVoiceInput() {
+      const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = "cs-CZ";
+      recognition.interimResults = false;
+      recognition.start();
+
+      recognition.onresult = (event) => {
+        const voiceText = event.results[0][0].transcript.toLowerCase();
+        if (voiceText.includes("zastav čtení")) stopReading();
+        else if (voiceText.includes("zastav text")) {
+          stopTyping();
+          provideVoiceFeedback("Zobrazování textu bylo zastaveno.");
+        }
+        else if (voiceText.includes("přečti")) readAnswerAloud();
+        else if (voiceText.includes("ulož")) downloadPDF();
+        else if (voiceText.includes("ulož jako txt")) downloadTXT();
+        else if (voiceText.includes("navrhni otázku")) generateFollowup();
+        else if (voiceText.includes("další akce")) {
+          const details = document.querySelector("details");
+          if (details) details.open = true;
+        } else if (voiceText.includes("skrýt akce")) {
+          const details = document.querySelector("details");
+          if (details) details.open = false;
+        } else if (voiceText.includes("nastavení")) {
+          toggleSettings();
+        } else if (voiceText.includes("skrýt nastavení")) {
+          const box = document.getElementById("settingsBox");
+          box.classList.add("hidden");
+        } else if (voiceText.includes("zobraz nastavení")) {
+          const box = document.getElementById("settingsBox");
+          box.classList.remove("hidden");
+        } else {
+          document.getElementById("question").value = voiceText;
+          askAI();
+        }
+      };
+
+      recognition.onerror = (event) => {
+        alert("Chyba při rozpoznání hlasu: " + event.error);
+      };
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const industry = document.getElementById("industry").value === "vlastní" ? document.getElementById("customIndustry").value.trim() : document.getElementById("industry").value;
+      const question = document.getElementById("question").value.trim();
+      const answer = document.getElementById("responseText").textContent;
+      doc.text(`Obor: ${industry}\n\nOtázka: ${question}\n\nOdpověď:\n${answer}`, 10, 20, { maxWidth: 180 });
+      doc.save("odpoved_poradce.pdf");
+    }
+
+    function downloadTXT() {
+      const industry = document.getElementById("industry").value === "vlastní" ? document.getElementById("customIndustry").value.trim() : document.getElementById("industry").value;
+      const question = document.getElementById("question").value.trim();
+      const answer = document.getElementById("responseText").textContent;
+      const blob = new Blob([`Obor: ${industry}\n\nOtázka: ${question}\n\nOdpověď:\n${answer}`], { type: 'text/plain' });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "odpoved_poradce.txt";
+      a.click();
+    }
+
+    // Funkce pro práci s pamětí
+    function saveToMemory(question, answer, industry) {
+      // Vytvoříme zkrácenou odpověď pro kontext
+      const shortAnswer = answer.length > 100 ? answer.substring(0, 100) + "..." : answer;
+      
+      // Uložíme konverzaci do paměti
+      const timestamp = new Date().toISOString();
+      memory.conversations.push({
+        timestamp,
+        question,
+        answer,
+        shortAnswer,
+        industry
+      });
+      
+      // Omezíme velikost paměti na posledních 20 konverzací
+      if (memory.conversations.length > 20) {
+        memory.conversations = memory.conversations.slice(-20);
+      }
+      
+      // Uložíme paměť do localStorage
+      localStorage.setItem('aiAdvisorMemory', JSON.stringify(memory));
+    }
+    
+    function extractTopicKeywords(text) {
+      // Jednoduchá extrakce klíčových slov z textu
+      const keywords = [];
+      const commonWords = ["jak", "proč", "kdy", "kde", "kdo", "co", "jaký", "který", "a", "nebo", "v", "na", "s"];
+      
+      // Rozdělíme text na slova a filtrujeme
+      const words = text.toLowerCase().split(/\s+/);
+      words.forEach(word => {
+        // Očistíme slovo od interpunkce
+        const cleanWord = word.replace(/[.,?!;:()]/g, '');
+        if (cleanWord.length > 3 && !commonWords.includes(cleanWord)) {
+          keywords.push(cleanWord);
+        }
+      });
+      
+      return [...new Set(keywords)]; // Odstraníme duplicity
+    }
+    
+    function findRelevantMemories(question, industry) {
+      if (memory.conversations.length === 0) return [];
+      
+      // Extrahujeme klíčová slova z otázky
+      const keywords = extractTopicKeywords(question);
+      
+      // Ohodnotíme relevanci každé předchozí konverzace
+      const scoredMemories = memory.conversations.map(conv => {
+        // Základní skóre, pokud je stejný obor
+        let score = conv.industry === industry ? 2 : 0;
+        
+        // Přidáme skóre za každé klíčové slovo, které se nachází v otázce nebo odpovědi
+        keywords.forEach(keyword => {
+          if (conv.question.toLowerCase().includes(keyword)) score += 1;
+          if (conv.answer.toLowerCase().includes(keyword)) score += 0.5;
+        });
+        
+        return { ...conv, score };
+      });
+      
+      // Seřadíme podle skóre a vrátíme nejvýše 3 nejvíce relevantní
+      return scoredMemories
+        .sort((a, b) => b.score - a.score)
+        .filter(m => m.score > 2)
+        .slice(0, 3);
+    }
+    
+    function extractLearningPoints(question, answer, industry) {
+      // Extrahujeme klíčová slova a fráze pro učení
+      const keywords = extractTopicKeywords(question);
+      
+      // Pro každé klíčové slovo zkontrolujeme, zda odpověď obsahuje nějaké užitečné informace
+      keywords.forEach(keyword => {
+        // Hledáme věty, které obsahují klíčové slovo
+        const regex = new RegExp(`[^.!?]*${keyword}[^.!?]*[.!?]`, 'gi');
+        const matches = answer.match(regex);
+        
+        if (matches && matches.length > 0) {
+          // Bereme první větu jako potenciální znalostní bod
+          const learningPoint = matches[0].trim();
+          
+          // Uložíme znalostní bod
+          if (learningPoint.length > 15) {
+            memory.learningPoints[keyword] = learningPoint;
+          }
+        }
+      });
+      
+      // Uložíme aktualizovanou paměť
+      localStorage.setItem('aiAdvisorMemory', JSON.stringify(memory));
+    }
+    
+    function updateMemoryDisplay() {
+      const memoryContent = document.getElementById('memoryContent');
+      
+      if (memory.conversations.length === 0) {
+        memoryContent.innerHTML = '<p class="text-gray-400 text-sm italic">Zatím žádné vzpomínky...</p>';
+        return;
+      }
+      
+      // Zobrazíme poslední 3 konverzace a statistiky
+      let html = '<div class="text-sm">';
+      
+      // Konverzace
+      html += '<p class="font-semibold mb-1 text-teal-300">Poslední konverzace:</p>';
+      memory.conversations.slice(-3).reverse().forEach(conv => {
+        const date = new Date(conv.timestamp).toLocaleString('cs-CZ');
+        html += `<div class="mb-2 pb-1 border-b border-gray-700">
+          <p class="text-xs text-gray-400">${date} - ${conv.industry}</p>
+          <p class="text-white">${conv.question}</p>
+        </div>`;
+      });
+      
+      // Statistiky
+      html += '<p class="font-semibold mt-2 mb-1 text-teal-300">Statistiky:</p>';
+      html += `<p class="text-xs">Celkem dotazů: ${memory.stats.questionsAsked}</p>`;
+      
+      // Nejčastější témata
+      const topTopics = Object.entries(memory.stats.topicFrequency)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
+        
+      if (topTopics.length > 0) {
+        html += '<p class="text-xs mt-1">Nejčastější témata:</p>';
+        html += '<ul class="text-xs list-disc ml-4">';
+        topTopics.forEach(([topic, count]) => {
+          html += `<li>${topic} (${count}x)</li>`;
+        });
+        html += '</ul>';
+      }
+      
+      html += '</div>';
+      memoryContent.innerHTML = html;
+    }
+    
+    function toggleMemory() {
+      const box = document.getElementById("memoryBox");
+      if (box.classList.contains("hidden")) {
+        box.classList.remove("hidden");
+        updateMemoryDisplay();
+      } else {
+        box.classList.add("hidden");
+      }
+    }
+    
+    function clearMemory() {
+      if (confirm("Opravdu chcete vymazat všechnu paměť agenta? Tato akce je nevratná.")) {
+        memory = {
+          conversations: [],
+          learningPoints: {},
+          stats: {
+            questionsAsked: 0,
+            topicFrequency: {}
+          }
+        };
+        localStorage.removeItem('aiAdvisorMemory');
+        updateMemoryDisplay();
+        alert("Paměť byla vymazána.");
+      }
+    }
+    
+    function exportMemory() {
+      const memoryJson = JSON.stringify(memory, null, 2);
+      const blob = new Blob([memoryJson], { type: 'application/json' });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "ai_poradce_pamet.json";
+      a.click();
+    }
+    
+    function saveToHistory(q, a) {
+      const list = document.getElementById("historyList");
+      const li = document.createElement("li");
+      li.textContent = `${q} → ${a.substring(0, 60)}...`;
+      list.prepend(li);
+    }
+
+    function generateFollowup() {
+      let industry = document.getElementById("industry").value;
+      if (industry === "vlastní") {
+        industry = document.getElementById("customIndustry").value.trim();
+      }
+      const question = document.getElementById("question").value.trim();
+      const suggestion = `Zajímá tě víc? Co třeba: \"Jak zlepšit ${industry} pomocí technologií?\"`;
+      alert(suggestion);
+    }
+
+    function readAnswerAloud() {
+      stopReading();
+      const text = document.getElementById("responseText").textContent;
+      speakCleaned(text);
+    }
+
+    function provideVoiceFeedback(message) {
+      stopReading();
+      speakCleaned(message);
+    }
+
+    function stopReading() {
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    function speakCleaned(rawText) {
+      const cleaned = rawText
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/1\./g, 'Za prvé')
+        .replace(/2\./g, 'Za druhé')
+        .replace(/3\./g, 'Za třetí')
+        .replace(/4\./g, 'Za čtvrté')
+        .replace(/5\./g, 'Za páté')
+        .replace(/[\-*•]/g, '')
+        .replace(/\n/g, ' ');
+      const utterance = new SpeechSynthesisUtterance(cleaned);
+      utterance.lang = "cs-CZ";
+      window.speechSynthesis.speak(utterance);
+    }
+  </script>
+</body>
+</html>
