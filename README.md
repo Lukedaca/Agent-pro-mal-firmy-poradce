@@ -2,7 +2,6 @@
 
 Interaktivní webová aplikace, která využívá GPT-4 pro poskytování personalizovaných rad a doporučení malým firmám a podnikatelům v České republice.
 
-![Screenshot aplikace](screenshot.png)
 
 ## 🌟 Funkce
 
